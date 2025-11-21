@@ -8,8 +8,8 @@ int16_t sensorWeights[] = { -15, -12, -8, -4, 4, 8, 12, 15 };
 
 int diffSum;
 int16_t prevErrorValue = 0;
-float kD = .20;  //WOrks up to spd=100
-float kP = .04;
+float kD = .105;  //Works up to spd=100
+float kP = .015;
 int PIDSum;
 bool hasTurned = false;
 bool hasLooped = false;
@@ -43,6 +43,7 @@ void setup() {
   pinMode(right_nslp_pin, OUTPUT);
   pinMode(right_dir_pin, OUTPUT);
   pinMode(right_pwm_pin, OUTPUT);
+  pinMode(LED_RF, OUTPUT);
 
   digitalWrite(left_nslp_pin, HIGH);
   digitalWrite(right_nslp_pin, HIGH);
@@ -66,7 +67,7 @@ void loop() {
   bool isAllBlack;
   int reading = 0;
   int count1 = 0; 
-  int count2 = 0;
+  static int count2 = 0;
   for (int i = 0; i < 8; i++) {
     if (sensorValues[i] >= calibrationMin[i]) {
       //int reading = sensorValues[i]
@@ -104,8 +105,14 @@ void loop() {
   prevErrorValue = errorValue;
  
   if (count2 >= 6 && !hasTurned) {
-    // do turn
+    count2 = 0;
+    digitalWrite(LED_RF, HIGH);
+    digitalWrite(left_dir_pin, HIGH);
+    analogWrite(left_pwm_pin, 20);
+    analogWrite(right_pwm_pin, 20);
+    delay(4725);
     hasTurned = true;
+    digitalWrite(left_dir_pin, LOW);
   }
 
 
