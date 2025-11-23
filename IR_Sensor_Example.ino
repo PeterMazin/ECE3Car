@@ -2,20 +2,23 @@
 #define SENS_ERROR 100
 
 uint16_t sensorValues[8];
-uint16_t calibrationMin[] = { 773, 689, 821, 596, 576, 717, 721, 834 };
-uint16_t calibrationMax[] = { 1727, 1733, 1679, 1037, 1682, 1688, 1666 };
-int16_t sensorWeights[] = { -15, -12, -8, -4, 4, 8, 12, 15 };
+uint16_t calibrationMin[] = {773, 689, 821, 596, 576, 717, 721, 834};
+uint16_t calibrationMax[] = {1727, 1733, 1679, 1037, 1682, 1688, 1666};
+int16_t sensorWeights[] = {-15, -12, -8, -4, 4, 8, 12, 15};
 
 int diffSum;
 int16_t prevErrorValue = 0;
-float kD = .105;  //Works up to spd=100
+float kD = .105; // Works up to spd=100
 float kP = .015;
 int PIDSum;
-bool hasTurned = false;
-bool hasLooped = false;
+int line_count = 0;
+int past_read_count = 0;
 
-const int left_nslp_pin = 31;   // nslp HIGH ==> awake & ready for PWM
-const int right_nslp_pin = 11;  // nslp HIGH ==> awake & ready for PWM
+bool hasTurned = false;
+bool hasReachedBiasing = true;
+
+const int left_nslp_pin = 31;  // nslp HIGH ==> awake & ready for PWM
+const int right_nslp_pin = 11; // nslp HIGH ==> awake & ready for PWM
 const int left_dir_pin = 29;
 const int right_dir_pin = 30;
 const int left_pwm_pin = 40;
@@ -23,101 +26,135 @@ const int right_pwm_pin = 39;
 
 const int LED_RF = 75;
 int wheelSpd = 20;
-int distance = 300;
 
-int average()  //average pulse count
+void do_turn_degree(int degree);
+void turn_off_left_sensors();
+void stop_car();
+
+void setup()
 {
-  int getL = getEncoderCount_left();
-  int getR = getEncoderCount_right();
-  //  Serial.print(getL);Serial.print("\t");Serial.println(getR);
-  return ((getEncoderCount_left() + getEncoderCount_right()) / 2);
-}
+    ECE3_Init();
 
+    pinMode(left_nslp_pin, OUTPUT);
+    pinMode(left_dir_pin, OUTPUT);
+    pinMode(left_pwm_pin, OUTPUT);
+    pinMode(right_nslp_pin, OUTPUT);
+    pinMode(right_dir_pin, OUTPUT);
+    pinMode(right_pwm_pin, OUTPUT);
+    pinMode(LED_RF, OUTPUT);
 
-void setup() {
-  ECE3_Init();
+    digitalWrite(left_nslp_pin, HIGH);
+    digitalWrite(right_nslp_pin, HIGH);
 
-  pinMode(left_nslp_pin, OUTPUT);
-  pinMode(left_dir_pin, OUTPUT);
-  pinMode(left_pwm_pin, OUTPUT);
-  pinMode(right_nslp_pin, OUTPUT);
-  pinMode(right_dir_pin, OUTPUT);
-  pinMode(right_pwm_pin, OUTPUT);
-  pinMode(LED_RF, OUTPUT);
-
-  digitalWrite(left_nslp_pin, HIGH);
-  digitalWrite(right_nslp_pin, HIGH);
-
-  digitalWrite(right_dir_pin, LOW);
-  digitalWrite(left_dir_pin, LOW);
-
-  resetEncoderCount_left();
-  resetEncoderCount_right();
-
-  Serial.begin(9600);  // set the data rate in bits per second for serial data transmission
-  delay(2000);
-}
-
-
-void loop() {
-  // read raw sensor values
-  ECE3_read_IR(sensorValues);
-  int16_t errorValue = 0;
-  int maxError = 0;
-  bool isAllBlack;
-  int reading = 0;
-  int count1 = 0; 
-  static int count2 = 0;
-  for (int i = 0; i < 8; i++) {
-    if (sensorValues[i] >= calibrationMin[i]) {
-      //int reading = sensorValues[i]
-      reading = (sensorValues[i] - calibrationMin[i]) * 1000 / (float)calibrationMax[i];
-      errorValue += (sensorWeights[i] / 8) * reading;
-    }
-    if (reading > 600)
-      count1 += 1;
-  }
-
-  if(count1 >= 7){
-    count1 = 0;
-    count2++;
-}
-
-  // print the sensor values as numbers from 0 to 2500, where 0 means maximum reflectance and
-  // 2500 means minimum reflectance
-
-  int leftSpd = wheelSpd;
-  int rightSpd = wheelSpd;
-  //Serial.println(errorValue);
-  //PID controller
-  diffSum = (errorValue - prevErrorValue);
-  PIDSum = (kP * errorValue) + (kD * diffSum);
-  leftSpd -= PIDSum;
-  rightSpd += PIDSum;  //look at signs
-
-  analogWrite(left_pwm_pin, leftSpd);
-  analogWrite(right_pwm_pin, rightSpd);
-
-  resetEncoderCount_left();
-  resetEncoderCount_right();
-  //Serial.println(errorValue);
-
-  prevErrorValue = errorValue;
- 
-  if (count2 >= 6 && !hasTurned) {
-    count2 = 0;
-    digitalWrite(LED_RF, HIGH);
-    digitalWrite(left_dir_pin, HIGH);
-    analogWrite(left_pwm_pin, 20);
-    analogWrite(right_pwm_pin, 20);
-    delay(4725);
-    hasTurned = true;
+    digitalWrite(right_dir_pin, LOW);
     digitalWrite(left_dir_pin, LOW);
-  }
 
+    resetEncoderCount_left();
+    resetEncoderCount_right();
 
-  /*
-if (hasTurned == false && atTurn == true)
-  Do CCW 225 degree turn by making wheels go opposite directions
-*/
+    Serial.begin(9600); // set the data rate in bits per second for serial data
+                        // transmission
+    delay(2000);
+}
+
+void loop()
+{
+    // read raw sensor values
+    ECE3_read_IR(sensorValues);
+    int16_t errorValue = 0;
+    int maxError = 0;
+    int reading = 0;
+    int max_read_count = 0;
+    static int count2 = 0;
+
+    for (int i = 0; i < 8; i++)
+    {
+        if (sensorValues[i] >= calibrationMin[i])
+        {
+            reading = (sensorValues[i] - calibrationMin[i]) * 1000 /
+                      (float)calibrationMax[i];
+            errorValue += (sensorWeights[i] / 8) * reading;
+        }
+        if (reading > 600)
+            max_read_count += 1;
+    }
+
+    if (max_read_count >= 7)
+    {
+        max_read_count = 0;
+        count2++;
+    }
+
+    int leftSpd = wheelSpd;
+    int rightSpd = wheelSpd;
+
+    // PID controller
+    diffSum = (errorValue - prevErrorValue);
+    PIDSum = (kP * errorValue) + (kD * diffSum);
+    leftSpd -= PIDSum;
+    rightSpd += PIDSum;
+
+    analogWrite(left_pwm_pin, leftSpd);
+    analogWrite(right_pwm_pin, rightSpd);
+
+    // TODO: Autostop might have issues from turning off the sensors
+    // Maybe decrease the amount of sensors needed for count2?
+    // Also make sure to ignore continous readings of max_reads
+    if (count2 >= 6)
+    {
+        if (!hasTurned)
+        {
+            hasTurned = true;
+            do_turn_degree(255);
+        }
+        else if (!hasReachedBiasing)
+        {
+            hasReachedBiasing = true;
+            turn_off_left_sensors();
+            digitalWrite(LED_RF, HIGH);
+        }
+        else
+        {
+            stop_car();
+        }
+
+        count2 = 0;
+    }
+
+    prevErrorValue = errorValue;
+    past_read_count = max_read_count;
+}
+
+void stop_car()
+{
+    digitalWrite(left_nslp_pin, LOW);
+    digitalWrite(right_nslp_pin, LOW);
+
+    while (true)
+    {
+        digitalWrite(LED_RF, LOW);
+        delay(1000);
+        digitalWrite(LED_RF, HIGH);
+        delay(1000);
+    }
+}
+
+void do_turn_degree(int degree)
+{
+    static const int TURN_SPEED = 20;
+    static const int MS_PER_360 = 6671;
+
+    digitalWrite(left_dir_pin, HIGH);
+    analogWrite(left_pwm_pin, TURN_SPEED);
+    analogWrite(right_pwm_pin, TURN_SPEED);
+
+    delay(MS_PER_DEG * degree);
+    digitalWrite(left_dir_pin, LOW);
+}
+
+void turn_off_left_sensors()
+{
+    sensorWeights[0] = 0;
+    sensorWeights[1] = 0;
+    sensorWeights[2] = 0;
 }
