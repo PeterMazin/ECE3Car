@@ -110,7 +110,7 @@ void loop()
         else if (!hasReachedBiasing)
         {
             hasReachedBiasing = true;
-            turn_off_left_sensors();
+            turn_off_right_sensors();
             digitalWrite(LED_RF, HIGH);
         }
         else
@@ -152,9 +152,9 @@ void do_turn_degree(int degree)
     digitalWrite(left_dir_pin, LOW);
 }
 
-void turn_off_left_sensors()
+void turn_off_right_sensors()
 {
-    sensorWeights[0] = 0;
-    sensorWeights[1] = 0;
-    sensorWeights[2] = 0;
+    sensorWeights[6] = 0;
+    sensorWeights[7] = 0;
+    sensorWeights[8] = 0;
 }
