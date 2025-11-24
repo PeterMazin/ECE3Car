@@ -28,7 +28,7 @@ const int LED_RF = 75;
 int wheelSpd = 20;
 
 void do_turn_degree(int degree);
-void turn_off_left_sensors();
+void turn_off_right_sensors();
 void stop_car();
 
 void setup()
@@ -154,7 +154,7 @@ void do_turn_degree(int degree)
 
 void turn_off_right_sensors()
 {
+    sensorWeights[5] = 0;
     sensorWeights[6] = 0;
     sensorWeights[7] = 0;
-    sensorWeights[8] = 0;
 }
