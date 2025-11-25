@@ -15,7 +15,11 @@ int line_count = 0;
 int past_read_count = 0;
 
 bool hasTurned = false;
-bool hasReachedBiasing = true;
+bool hasReachedTimedStart = false;
+bool hasReachedTimedEnd = false;
+bool hasReachedBiasing = false;
+
+bool isOnBlack = false;
 
 const int left_nslp_pin = 31;  // nslp HIGH ==> awake & ready for PWM
 const int right_nslp_pin = 11; // nslp HIGH ==> awake & ready for PWM
@@ -79,11 +83,7 @@ void loop()
             max_read_count += 1;
     }
 
-    if (max_read_count >= 7)
-    {
-        max_read_count = 0;
-        count2++;
-    }
+
 
     int leftSpd = wheelSpd;
     int rightSpd = wheelSpd;
@@ -97,35 +97,41 @@ void loop()
     analogWrite(left_pwm_pin, leftSpd);
     analogWrite(right_pwm_pin, rightSpd);
 
-    // TODO: Autostop might have issues from turning off the sensors
-    // Maybe decrease the amount of sensors needed for count2?
-    // Also make sure to ignore continous readings of max_reads
-    if (count2 >= 6)
+        if (max_read_count > 6)
     {
-        if (!hasTurned)
-        {
-            hasTurned = true;
-            do_turn_degree(255);
-        }
-        else if (!hasReachedBiasing)
-        {
-            hasReachedBiasing = true;
-            turn_off_right_sensors();
+        if (past_read_count > 6 && !isOnBlack) {
+            isOnBlack = true;
+            if (!hasTurned)
+            {
+                hasTurned = true; //turn fucks up on positions to the right
+                digitalWrite(LED_RF, HIGH);
+                do_turn_degree();
+                digitalWrite(LED_RF, LOW);
+            }
+            else if (!hasReachedTimedStart) {
+                hasReachedTimedStart = true;
+            }
+            else if (!hasReachedTimedEnd) {
+                hasReachedTimedEnd = true;
+                turn_off_right_sensors();
+                digitalWrite(LED_RF, HIGH);
+            }
+            else if (hasTurned)
+            {
+                stop_car();
+            }
+        } else if (isOnBlack) {
             digitalWrite(LED_RF, HIGH);
         }
-        else
-        {
-            stop_car();
-        }
-
-        count2 = 0;
+    } else {
+        isOnBlack = false;
     }
 
     prevErrorValue = errorValue;
     past_read_count = max_read_count;
 }
 
-void stop_car()
+void stop_car() //doesnt work since 2 sensors are off
 {
     digitalWrite(left_nslp_pin, LOW);
     digitalWrite(right_nslp_pin, LOW);
@@ -139,22 +145,19 @@ void stop_car()
     }
 }
 
-void do_turn_degree(int degree)
+void do_turn_degree()
 {
-    static const int TURN_SPEED = 20;
-    static const int MS_PER_360 = 6671;
-
+    digitalWrite(LED_RF, HIGH);
     digitalWrite(left_dir_pin, HIGH);
-    analogWrite(left_pwm_pin, TURN_SPEED);
-    analogWrite(right_pwm_pin, TURN_SPEED);
-
-    delay(MS_PER_DEG * degree);
+    analogWrite(left_pwm_pin, 20);
+    analogWrite(right_pwm_pin, 20);
+    delay(4725);
+    hasTurned = true;
     digitalWrite(left_dir_pin, LOW);
 }
 
 void turn_off_right_sensors()
 {
-    sensorWeights[5] = 0;
-    sensorWeights[6] = 0;
-    sensorWeights[7] = 0;
-}
+    sensorWeights[0] = 0;
+    sensorWeights[1] = 0;
+    //sensorWeights[2] = 0; fixed issue
