@@ -70,21 +70,25 @@ void loop()
     int reading = 0;
     int max_read_count = 0;
     static int count2 = 0;
+    int numSensors = 0;
+    
+    if (!hasReachedTimedEnd)
+        numSensors = 8;
+    else
+        numSensors = 6;
 
-    for (int i = 0; i < 8; i++)
+    for (int i = 0; i < numSensors; i++)
     {
         if (sensorValues[i] >= calibrationMin[i])
         {
             reading = (sensorValues[i] - calibrationMin[i]) * 1000 /
                       (float)calibrationMax[i];
-            errorValue += (sensorWeights[i] / 8) * reading;
+            errorValue += (sensorWeights[i] / numSensors) * reading;
         }
         if (reading > 600)
             max_read_count += 1;
     }
-
-
-
+  
     int leftSpd = wheelSpd;
     int rightSpd = wheelSpd;
 
