@@ -70,8 +70,12 @@ void loop()
     int reading = 0;
     int max_read_count = 0;
     static int count2 = 0;
-
-    for (int i = 0; i < 8; i++)
+    int sensorStart = 0;
+    
+    if (hasReachedTimedEnd)
+        sensorStart = 2;
+    
+    for (int i = sensorStart; i < 8; i++)
     {
         if (sensorValues[i] >= calibrationMin[i])
         {
@@ -82,9 +86,7 @@ void loop()
         if (reading > 600)
             max_read_count += 1;
     }
-
-
-
+  
     int leftSpd = wheelSpd;
     int rightSpd = wheelSpd;
 
