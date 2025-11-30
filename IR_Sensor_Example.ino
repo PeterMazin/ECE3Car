@@ -70,20 +70,18 @@ void loop()
     int reading = 0;
     int max_read_count = 0;
     static int count2 = 0;
-    int numSensors = 0;
+    int sensorStart = 0;
     
-    if (!hasReachedTimedEnd)
-        numSensors = 8;
-    else
-        numSensors = 6;
-
-    for (int i = 0; i < numSensors; i++)
+    if (hasReachedTimedEnd)
+        sensorStart = 2;
+    
+    for (int i = sensorStart; i < 8; i++)
     {
         if (sensorValues[i] >= calibrationMin[i])
         {
             reading = (sensorValues[i] - calibrationMin[i]) * 1000 /
                       (float)calibrationMax[i];
-            errorValue += (sensorWeights[i] / numSensors) * reading;
+            errorValue += (sensorWeights[i] / 8) * reading;
         }
         if (reading > 600)
             max_read_count += 1;
