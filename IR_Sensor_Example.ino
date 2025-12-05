@@ -163,3 +163,4 @@ void turn_off_right_sensors()
     sensorWeights[0] = 0;
     sensorWeights[1] = 0;
     //sensorWeights[2] = 0; fixed issue
+}
